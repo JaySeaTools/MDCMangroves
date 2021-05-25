@@ -1,0 +1,657 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="The Miami-Dade County Mangrove Recession Mapper is used to inform and interpret the potential loss of habitat for mangrove forests throughout the Miami-Dade county due to relative sea level rise (rSLR) trends." />
+  <meta name="keywords" content="Miami-Dade County, Mangrove, Recession, Mapper, Salt Marsh, Dieback, Colonization, Relative Sea Level Rise," />
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>MDC Mangrove Recession Mapper</title>
+  <style>
+    html,
+    
+    body,
+    /*Map Divider*/
+    #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 97.5%;
+      width: 100%;  
+    }
+    /*Heading Banner*/
+    #header {
+      padding: 5px 0;
+      margin: auto;
+      height: 40px;
+      width: 100%;
+      background-color: #00984F;
+      background-image: linear-gradient(to right, #00FFFF , #00300F);
+      text-align: left;
+    }
+    /*about header content*/
+    #abtheader {
+      padding-top: 5px;
+      padding-bottom: 5px;
+      margin: auto;
+      height: 20px;
+      width: 100%;
+      background-color: #00550F;
+      text-align: center;
+      border-style: solid;
+      border-width: 2px;
+      border-color: #00550F;
+    }
+    /*about window content divider/background*/
+    #abtcontent {
+      padding-bottom: 5px;
+      margin: auto;
+      width: 100%;
+      border-style: solid;
+      border-width: 2px;
+      border-color: #F9F9F9;
+      background: #F9F9F9;
+    }
+    /*about button*/
+   .dropbtn {
+     background-color: #00550F;
+     color: white;
+     padding: 9px;
+     font-size: 16px;
+     font-family:'verdana';
+     border-radius: 6px;
+     cursor: pointer;
+  }
+  /*about button when mouse hovers over*/
+  .dropbtn:hover {
+     background-color: #00984F;
+     border-radius: 6px;
+  }
+  /*about window display*/
+  .dropdown {
+     float: right;
+     position: relative;
+     display: inline-block;
+  }
+  /*content of the window*/
+  .about-content {
+     display: block;
+     position: absolute;
+     right: 0;
+     background-color: #D1D1D1;
+     border-style: solid;
+     border-width: 1px;
+     border-color: black;
+     width: 450px;
+     max-height: 600px;
+     overflow: auto;
+     box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+     z-index: 1;
+     font-family:'verdana';
+     font-size: 13px;
+     padding: 5px;
+     border-radius: 6px;
+  }
+  
+  /*tooltip when drawing*/
+  .show {display: none;}
+  .tooltip {
+    position: relative;
+    display: inline-block; 
+    visibility: hidden;
+  }
+  .tooltip .tooltiptext {
+    width: 120px;
+    background-color: #00550F;
+    color: #fff;
+    text-align: center;
+    font-size: 12px;
+    font-family: 'verdana';
+    padding: 5px 0;
+    border-radius: 6px;
+    position: absolute;
+    z-index: 1;
+  }
+  
+  /*track*/
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1; 
+  }
+ 
+  /* Handle */
+  ::-webkit-scrollbar-thumb {
+    background: #00550F; 
+  }
+
+  /* Handle on hover */
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555; 
+  }
+  </style>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.15/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.15/"></script>
+</head>
+
+<script>
+  require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/layers/FeatureLayer",
+      "esri/layers/GraphicsLayer",
+      "esri/Graphic",
+      "esri/widgets/Search",
+      "esri/tasks/Locator",
+      "esri/widgets/BasemapToggle",
+      "esri/widgets/Popup",
+      "esri/views/draw/PolygonDrawAction",
+      "esri/views/draw/Draw"
+    ],
+    function(
+      Map, MapView, FeatureLayer, GraphicsLayer, Graphic, Search, Locator, BasemapToggle, Popup, PolygonDrawAction, Draw) {
+      
+      //base map set to topography
+      var map = new Map({
+        basemap: "topo-vector"
+      });
+
+      //Create the map view
+      var view = new MapView({
+        container: "viewDiv", //set it to the html division
+        map: map,
+        center: [-80.2333, 25.5592], //View centered on Biscayne Bay
+        zoom: 9,
+        popup: {
+            dockEnabled: true,
+            dockOptions: {
+              // Disables the dock button from the popup
+              buttonEnabled: false,
+              // Ignore the default sizes that trigger responsive docking
+              breakpoint: false
+            }
+          },
+      });
+      //A draw constructor for drawing the project area polygon
+      const draw = new Draw({
+          view: view
+      });
+    
+      //Addition of widget toggling the basemap from topography to satellite view
+      var basemapToggle = new BasemapToggle({
+        view: view,
+        nextBasemap: "hybrid"
+      });
+      view.ui.add(basemapToggle, "bottom-right"); //Set to the bottom right
+    
+      //Addition of the search widget to allow it to search lat/longs and current location for querying
+      var searchWidget = new Search ({ 
+        view: view,
+        includeDefaultSources: false, //Remove the usual search sources
+        popupEnabled: false, //Keep the search from popping up its own results
+        resultGraphicEnabled: false, //No need to offer possible results
+        sources: [{//This is the source that allows for querying lat/long
+              locator: new Locator({ url: "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer" }),
+              placeholder: "Search",
+              singleLineFieldName: "SingleLine",
+              outFields: ["Address"],
+              name: "ArcGIS World Geocoding Service",
+              suggestionsEnabled: false,
+              
+            }],
+        locationEnabled: true
+      });
+      view.ui.add(searchWidget, "top-left");//Set the search to the top right
+      view.ui.move("zoom", "top-left");
+      //Action button for downloading something
+      /*var downloadReportAction = {
+          title: "Download", //Item title, make it more descriptive
+          id: "downloadButton",
+          image:  //Insert Image link here
+      };*/
+
+      //Information window added with no information
+      var infoWindow = new Popup ({
+        view: view,
+        //actions: [downloadReportAction]//Add the download button
+      });
+      view.ui.add(infoWindow);//Adds the info window to the view, but visibility is controlled by the querying
+      
+      //The line button is constructed in the html, but set in the view here.
+      view.ui.add("line-button", "top-left");
+    
+      //This is for the tooltip that pops up to explain the drawing function
+      var tooltip = document.getElementById("drawTooltip");
+      view.ui.add("drawTooltip", "manual");
+     //Load in the feature layers here
+     
+      var highLayer = new FeatureLayer ({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/MangroveHighPoly/FeatureServer"
+      });
+      var saltMarshHighLayer = new FeatureLayer ({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/SaltMarshHigh/FeatureServer"
+      });
+      var wetlandHighLayer = new FeatureLayer({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/HerbWetlandHigh/FeatureServer"
+      });
+      var streamsHighLayer = new FeatureLayer({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/WetlandStreamHigh/FeatureServer"
+      });
+      var sinksHighLayer = new FeatureLayer({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/SinksHigh/FeatureServer"
+      })
+    
+      map.add(highLayer);
+    
+      var reportText; //The information that returned in the downloaded report
+      var queryPolygon = false; //Used to determine whether querying a polygon project area
+      var drawing = false; //Used to determine whether the user is currently drawing
+      
+    //A function I used to query a secondary table checked against the geolocated information queried
+    function queryTable(){
+        var name = []; //Array holding species common names
+        var windowText = []; //Text to display on the pop up info window
+        /* If making a report, use this:
+        reportText = ["Species,common_name,Life_stage,salinity_low,salinity_high,depth_low,depth_high,comments"
+];//Populate the report text with column headers*/
+          
+                  //To add the download button: infoWindow.actions = [downloadReportAction]; //Add the download button
+                  //Text for the downloadable CSV file
+                  /*example of adding text          reportText.push(feature.attributes.Species+","+feature.attributes.common_name+","+feature.attributes.life_stage+","+feature.attributes.salinity_low+","+feature.attributes.salinity_high+","+feature.attributes.depth_low+","+feature.attributes.depth_high+","+feature.attributes.comments);
+*/      
+                  
+                      //Placeholder array of strings combined to make one HTML content for the information window
+                      //windowText.push("<p> The following lists the habitats found in your search: <b>"+resultHabitats.join(", ")+"</b></p>");
+                      //Needed when combining the infowindow text
+                      //infoWindow.content = windowText.join(""); //Join the window text into one cohesive narrative
+                      //infoWindow.title = "Test Text";
+                      //infoWindow.content = "Test Content";
+                      //infoWindow.visible = true; //Make the window visible
+                      //infoWindow.actions = []; //Set the infowindow tools to nothing
+              //If someone was using a polygon to query data, get let the program know we're done.
+              //queryPolygon = false;//Polygon is done being used
+        return true;//Functions done
+      }//End of query table
+
+    function queryFeatureLayerView(shape, spatialRelationship, sqlExpression){
+        infoWindow.title = "Loading";//Something to show while loading
+        infoWindow.content = "Please wait a moment..."; //Description while loading
+        infoWindow.actions = []; //Get rid of the buttons
+        var mangroveyearLow = 2201;
+        var mangroveyearHigh = 2020;
+        var saltmarshLow = 2201;
+        var saltmarshHigh = 2020;
+        var wetlandLow = 2201;
+        var wetlandHigh = 2020;
+        var streamsLow = 2201;
+        var streamsHigh = 2020;
+        var sinksLow = 2201;
+        var sinksHigh = 2020;
+        var windowText = "";
+       
+        if (!map.findLayerById(highLayer.id)) {
+          highLayer.outFields = ["*"];
+        }//Load the layer
+        if (!map.findLayerById(saltMarshHighLayer.id)){
+          saltMarshHighLayer.outFields = ["*"];
+        }
+        var areaQuery = {
+          geometry: shape, //Shape sent by the function
+          distance: 50, //Distance around the shape queried
+          units: "meters", //Units of that distance
+          spatialRelationship: spatialRelationship, //This is sent to the function
+          outFields: ["*"], //basically lets you check any of the fields of what you're querying
+          returnGeometry: false, //I dunno
+          where: sqlExpression //What you are asking of where you are checking
+        }; //Create the query for layers
+    
+        // How you query a layer
+        highLayer.queryFeatures(areaQuery).then(function(result) {
+                    result.features.forEach(function(feature){
+                          if(mangroveyearLow > feature.attributes.gridcode){
+                            mangroveyearLow = feature.attributes.gridcode;
+                          }
+                          if(mangroveyearHigh < feature.attributes.gridcode){
+                            mangroveyearHigh = feature.attributes.gridcode;
+                          }
+                    });//query mangroves results
+          
+                    saltMarshHighLayer.queryFeatures(areaQuery).then(function(result){
+                      result.features.forEach(function(feature){
+                          if(saltmarshLow > feature.attributes.gridcode){
+                            saltmarshLow = feature.attributes.gridcode;
+                          }
+                          if(saltmarshHigh < feature.attributes.gridcode){
+                            saltmarshHigh = feature.attributes.gridcode;
+                          }
+                      });//query salt marsh results
+                      
+                      wetlandHighLayer.queryFeatures(areaQuery).then(function(result){
+                        result.features.forEach(function(feature){
+                          if(wetlandLow > feature.attributes.gridcode){
+                            wetlandLow = feature.attributes.gridcode;
+                          }
+                          if(wetlandHigh < feature.attributes.gridcode){
+                            wetlandHigh = feature.attributes.gridcode;
+                          }
+                        });//query wetlands results
+                        
+                        streamsHighLayer.queryFeatures(areaQuery).then(function(result){
+                          result.features.forEach(function(feature){
+                            if(streamsLow > feature.attributes.gridcode){
+                              streamsLow = feature.attributes.gridcode;
+                              if(wetlandLow != 2201){
+                                wetlandLow = streamsLow;
+                              }
+                            }
+                            if(streamsHigh > feature.attributes.gridcode){
+                              streamsHigh = feature.attributes.gridcode;
+                              if(wetlandHigh != 2020){
+                                wetlandHigh = streamsHigh;
+                              }
+                            }
+                          });//query streams results
+                          
+                          sinksHighLayer.queryFeatures(areaQuery).then(function(result){
+                            result.features.forEach(function(feature){
+                            if(sinksLow > feature.attributes.gridcode){
+                              sinksLow = feature.attributes.gridcode;
+                              if(wetlandLow != 2201 || streamsLow != 2201){
+                                wetlandLow = sinksLow;
+                              }
+                            }
+                            if(sinksHigh > feature.attributes.gridcode){
+                              sinksHigh = feature.attributes.gridcode;
+                              if(wetlandHigh != 2020 || streamsHigh != 2020){
+                                wetlandHigh = sinksHigh;
+                              }
+                            }
+                          });//query sinks results
+                             infoWindow.title = "Mangrove Dieback & Colonization"
+                        windowText = windowText + "<p><b>Expected Mangrove Dieback</b></p>";
+                        if(mangroveyearLow != 2201){
+                          if(mangroveyearLow == 2200){
+                            windowText = windowText + "Expected dieback exceeds the year 2200. Due to increasing error in projections, this application cannot give an accurate measure past the year 2200."
+                          }
+                          else{
+                            if(mangroveyearHigh == 2200){
+                                windowText = windowText + "<p> Earliest Potential Year of Dieback: " + mangroveyearLow + "</p>" + 
+                                "<p> Latest Potential Year of Dieback: " + mangroveyearHigh + "+</p>";
+                            }
+                            else{
+                                windowText = windowText + "<p> Earliest Potential Year of Dieback: " + mangroveyearLow + "</p>" + 
+                                "<p> Latest Potential Year of Dieback: " + mangroveyearHigh + "</p>";
+                            }
+                          }
+                        }
+                        else{
+                          windowText = windowText + "Your query did not return any mangroves projected under this model."
+                        }
+                        windowText = windowText + "<p><b>Salt Marsh Colonization</b></p>";
+                        if(saltmarshLow != 2201){
+                           if (saltmarshLow == 2200){
+                            windowText = windowText + "Potential colonization path exceeds the year 2200. Due to increasing error in projections, this application cannot give an accurate measure past the year 2200."
+                           }
+                           else{
+                          if(saltmarshHigh == 2200){
+                                windowText = windowText + "<p> Earliest Potential Year of Propagule Introduction: " + saltmarshLow + "</p>" + 
+                                "<p> Latest Potential Year of Propagule Introduction: " + saltmarshHigh + "+</p>";
+                            }
+                            else{
+                                windowText = windowText + "<p> Earliest Potential Year of Propagule Introduction: " + saltmarshLow + "</p>" + 
+                                "<p> Latest Potential Year of Propagule Introduction: " + saltmarshHigh + "</p>";
+                            }
+                           }
+                        }
+                        else{
+                         windowText = windowText + "Your query did not return any salt marsh projected under this model."
+                        }
+                        windowText = windowText + "<p><b>Herbacious Wetland Colonization</b></p>";
+                        if(wetlandLow != 2201){
+                          if (wetlandLow == 2200){
+                            windowText = windowText + "Potential colonization path exceeds the year 2200. Due to increasing error in projections, this application cannot give an accurate measure past the year 2200."
+                          }
+                          else{
+                              windowText = windowText + "<p> Earliest Potential Year of Propagule Introduction: " + wetlandLow + "</p>" + "<p> Earliest Potential Year of Propagule Introduction: " + wetlandHigh + "</p>";
+                              if(streamsLow != 2201 || streamsHigh != 2020 || sinksLow != 2201 || sinksHigh != 2020){
+                                windowText = windowText + "<p><i> *Colonization of this area determined by modeled hydrology. </i></p>";
+                              }
+                              else{
+                                windowText = windowText + "<p><i> *Propagule introduction is outside of modeled hydrology and contingent on significant tidal flooding.</i></p>";
+                              }
+                          }
+                        }
+                    else{
+                      windowText = windowText + "Your query did not return any herbacious wetland projected under this model."
+                    }
+                    infoWindow.content = windowText;
+                      });
+                   });
+                });
+            });
+                    //and nothing tries to finish before something else is finished
+        }).catch( function(err) {//ran into a server error, usually if it has trouble reaching the layer on arcgis
+          console.log("highLayer server issue" + err); //Let the console know the error
+          infoWindow.visible = true; //Make the window visible to tell the user an error happened
+          infoWindow.title = "An error occured.";
+          infoWindow.content = "It seems an error occured when performing your search. This may be due to an server issue on our end. Sorry for the inconvenience.";
+        });//End of feature query
+        
+      return true; //Let whoever is calling the function know we're done.
+      }//End of query feature function
+     
+    
+    function createPolygonGraphic(vertices, polyComplete){
+      view.graphics.removeAll(); //Get rid of any other shapes
+      var polygon = {
+        type: "polygon", // autocasts as Polygon
+        rings: vertices,
+        spatialReference: view.spatialReference
+      };
+
+      var graphic = new Graphic({
+        geometry: polygon,
+        symbol: {
+          type: "simple-fill", // autocasts as SimpleFillSymbol
+          color: [15, 15, 128, 0.5], //I just like the NOAA blue, but can make it whatever
+          style: "solid",
+          outline: {  // autocasts as SimpleLineSymbol
+            color: "black",
+            width: 1
+          }
+        }
+      });
+      view.graphics.add(graphic); //Add it to the map
+      //If they double click the shape and finish it
+      if(polyComplete){
+        infoWindow.visible = true; //Show the infowindow
+        queryFeatureLayerView(polygon, "intersects"); //Query based on the shape and everything intersecting it
+        drawing = false; //User is no longer drawing
+        document.getElementById("line-button").className = "esri-widget esri-widget--button esri-icon-polygon esri-interactive";//Normal draw button icon
+        document.getElementById("drawTooltip").style.visibility = "hidden";//Hide the tooltip
+        view.ui.add("drawTooltip", "manual");//Just so the tooltip follows you
+        view.ui.add("line-button", "top-left");//Just to reAdd the newly changed icon
+      }
+    }
+    //Allows for drawing shape
+    function enableCreatePolygon(draw, view) {
+      var action = draw.create("polygon");
+      // Adds a vertex
+      // Fires when user clicks, or presses the "F" key.
+      // Can also be triggered when the "R" key is pressed to redo.
+      action.on("vertex-add", function (evt) {
+        createPolygonGraphic(evt.vertices, false);
+      });
+
+      // Removes a vertex
+      // Fires when the "Z" key is pressed to undo the last added vertex
+      action.on("vertex-remove", function (evt) {
+        createPolygonGraphic(evt.vertices, false);
+      });
+
+      // Fires when the pointer moves over the view
+      action.on("cursor-update", function (evt) {
+        createPolygonGraphic(evt.vertices, false);
+      });
+
+      // Add a graphic representing the completed polygon
+      // when user double-clicks on the view or presses the "C" key
+      action.on("draw-complete", function (evt) {
+        createPolygonGraphic(evt.vertices, true);
+      });
+    }
+    
+     
+     //Fires when the user clicks the download button
+     function downloadReport() {
+        var reportFile = document.createElement('a'); //Create the report file
+        reportFile.setAttribute('href', 'data:text/plain;charset=utf-8,' +  encodeURIComponent(reportText.join("\n")));
+        reportFile.setAttribute('download', "DownloadReport.csv"); //This sets the file name
+        reportFile.style.display = 'none';
+        reportFile.click(); //Activates on click
+      }
+
+      
+      //When the user clicks on the map
+      view.on("click", function(event){
+        infoWindow.location = event.mapPoint; //Location of the popup window is where they clicked
+        if(!drawing){ //If they aren't drawing a project area
+          view.graphics.removeAll(); //Remove any previous project area polygons
+          if(queryFeatureLayerView(event.mapPoint, "intersects")){ //If they hit a thing to check out
+             infoWindow.visible = true; //Set the popup window to visible
+             //Set the search bar text to the lat and long at the location clicked
+             searchWidget.searchTerm = event.mapPoint.latitude.toFixed(4) + ", " + event.mapPoint.longitude.toFixed(4);
+          }
+          else{
+             infoWindow.visible = false; //if nothing to check out, no window
+          }
+          
+        }
+        
+      });
+        
+    
+      searchWidget.on("search-start", function(){ //If they're using the search bar
+        infoWindow.visible = false; //First set any visible pop up window to invisible
+        if(!queryPolygon){ //If they aren't already drawing a project area
+          view.graphics.removeAll(); //Remove any existing project area polygon
+          searchWidget.goToOverride = function(view, goToParams) { //Override some of the search widgets default movement patterns
+              goToParams.target.zoom = 8; //How much it zooms to the result
+              goToParams.options.durations = 0; //How many things it suggests in the search bar
+              queryFeatureLayerView(goToParams.target.target.center, "intersects"); //It queries the center of where the search bar is sending the map view
+              //queryTable(); //This might be a leftover mistake?
+              infoWindow.location = goToParams.target.target.center; //Set the infowindow to popup where the search bar is sending the map view
+              return view.goTo(goToParams.target, goToParams.options);  //Return to the override   
+          };
+          //queryTable(); //Well now this just has to be a leftover mistake.
+          infoWindow.visible = true; //Make the window visible.
+        }
+      });
+    
+      /*If the download function is used*/
+      infoWindow.on("trigger-action", function (event) {
+          if (event.action.id === "downloadReport") {
+            downloadReport(); //Call the download report function
+          }
+      });
+
+    //When the draw button is clicked
+    document.getElementById("line-button").onclick = function () {
+          view.graphics.removeAll(); //Get rid of any other drawings
+          if(!drawing){ //If they aren't currently drawing
+            document.getElementById("line-button").className = "esri-widget esri-widget--button esri-icon-close esri-interactive"; //Set the icon to an X
+            view.ui.add("line-button", "top-left"); //reset the icon
+
+            document.getElementById("drawTooltip").style.visibility = "visible"; //Show the drawing tooltip
+            view.ui.add("drawTooltip", "manual"); //It's position is set manually
+      
+            infoWindow.visible = false; //Hide the infowindow if it's showing
+            // creates and returns an instance of PolyLineDrawAction
+            const action = draw.create("polyline");
+            queryPolygon = true; //Used when querying a polygon rather than a point
+            enableCreatePolygon(draw, view) //start the drawing process
+            drawing = true; //Let the program know the user is currently drawing
+          }
+          else{//This means we're done drawing
+            document.getElementById("line-button").className = "esri-widget esri-widget--button esri-icon-polygon esri-interactive"; //Set the icon to normal
+            view.ui.add("line-button", "top-left");//Reset the icon
+            
+            document.getElementById("drawTooltip").style.visibility = "hidden"; //Hide the tool tip
+            view.ui.add("drawTooltip", "manual"); //Keep it's position manual
+            
+            queryPolygon = false; //No longer querying polygons
+            draw.reset(); //Draw variable is reset
+            drawing = false; //User is not drawing
+          }
+    };//End of draw button clicked function
+     
+    });//End of map program
+  </script>
+</head>
+<body>
+  <div id="header">
+    <a href = "https://marine-ecosystems.rsmas.miami.edu/index.html"><img src = "https://image.flaticon.com/icons/png/512/69/69524.png" style = "float: left; padding-left: 5px; position: relative;" width = "41.5" height = "41.5">
+    </a>
+    <t style="color:black; font-family:'Tahoma'; font-size: 150%; padding-left: 15px; line-height:37px" > 
+       MDC Mangrove Recession Mapper
+    </t>
+    <div class="dropdown">
+      <button onclick="dropDownFunction()" class="dropbtn">About</button>
+      <div id="aboutMenu" class="about-content">
+        <!--About window title-->
+        <div id = "abtheader"><t style="color:White; font-family:'Tahoma';font-size: 123%;" >Welcome to the Mangrove Recession Mapper!</t></div>
+        <!--About window content-->
+        <div id = "abtcontent">
+        <p style="text-align:center;">This mapping application should be used to inform and interpret the potential loss of habitat for mangrove forests throughout the Miami-Dade county due to relative sea level rise (rSLR) trends. This application relies on a model and informationed consolidated here: (Link Unavailable).</p>
+          <p style="text-align:center;"><b><u>This tool responds to three styles of input:</b></u>
+            <p style="text-align:left;"><u>Option 1:</u> Left click with your mouse or touch your touch screen device on your specific area of interest.</p>
+        <p style="text-align:left;"><u>Option 2:</u> In the search bar <img src="SearchBar.jpg" height="20" width="150"> located at the top left-hand corner of the map, enter GPS coordinates (latitude, longitude) or select "current location", which will appear after clicking in the search bar box.</p>
+          <p style="text-align:left;"><u>Option 3:</u> Select the draw icon <img src="DrawIcon.jpg" height="20" width="20"> located at the top left corner of the map. Here, you can draw a project area to investigate the upper and lower bounds for inundation years. Once the draw icon is selected, start the shape by left click/touching somewhere on the map, and continue click/touching new points until you have your desired project area and shape. Rapidly double click/touch to finish drawing your area. Your query will show for the entire area. <i>To exit out of draw mode, simply select the draw icon again, now represented by an "X".</i></p></p>
+        <p style="text-align:center;"><b><u>Interpreting the results:</u></b></p>
+         <p style="text-align:center;">After selecting your area/location, a window will pop up describing the year of inundation for the low, intermediate, and high trends.
+        </p>
+        <!-- <p style="text-align:center;">A CSV is available to download for your point of interest. To download this information to your computer, click the "Download CSV" button located at the bottom left of the results window pop up. This CSV will include the species that may be found in a particular location. Information includes common names, scientific names, life stages, minimum/maximum depth and salinity, and relevant comments.</p> -->
+        <p style ="text-align:center;">This mapping tool is not without its limitations. Variables, forest extents, and community ecology are consistently being updated to create a more holistic determination of dieback. For a detailed explanation of limitations, please refer to the "Limitations and Assumptions" section found at the manuscript here: (Link Unavailable).</p>
+        <p style ="text-align:center;">If there are issues or concerns involving this mapper, please contact the project developer at this email: juan.cervera@rsmas.miami.edu</p>
+        <p style ="text-align:center;"><i>*This mapper application is a tool to assist in mangrove/salt marsh habitat conservation and restoration and should not be used as the sole source of information on these topics. Please seek an holistic and comprehensive approach when determining the restoration of wetland sites.</i></p>  
+        </div>
+      </div>
+    </div>
+    <script>
+    //Toggles showing the content of the instructional menu
+    function dropDownFunction() {
+      document.getElementById("aboutMenu").classList.toggle("show");
+      
+    }
+    </script>
+  </div>
+  <!--This is where the map lives-->
+  <div id="viewDiv">
+    <!--Draw button-->
+    <div
+        id="line-button"
+        class="esri-widget esri-widget--button esri-icon-polygon esri-interactive"
+        title="Draw polygon"
+      > 
+    </div>
+    <!--drawing tooltip popup-->
+    <div 
+        id="drawTooltip"
+        class="tooltip">
+        <span class="tooltiptext">Click to Start. Double-click when finished.</span>
+        <script>
+          //How the tooltip moves around
+          var tooltip = document.querySelector('.tooltip span');
+
+          window.onmousemove = function (e) {//when the mouse moves
+          var x = (e.clientX) + 'px', //update the x
+              y = (e.clientY) + 'px'; //and the y coordinates of the tool tip
+            tooltip.style.top = y;
+            tooltip.style.left = x;
+            
+          };
+         </script>  
+    </div>
+  </div>
+  
+</body>
+
+</html>
