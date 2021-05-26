@@ -237,9 +237,16 @@
       });
       var sinksHighLayer = new FeatureLayer({
         url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/SinksHigh/FeatureServer"
+      });
+      var mangroveVisual = new FeatureLayer({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/Mangrove_Forests/FeatureServer"
+      });
+      var saltmarshVisual = new FeatureLayer({
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/Salt_Marshes/FeatureServer"
       })
     
-      map.add(highLayer);
+      map.add(mangroveVisual);
+      map.add(saltmarshVisual);
     
       var reportText; //The information that returned in the downloaded report
       var queryPolygon = false; //Used to determine whether querying a polygon project area
@@ -410,7 +417,7 @@
                             windowText = windowText + "Potential colonization path exceeds the year 2200. Due to increasing error in projections, this application cannot give an accurate measure past the year 2200."
                           }
                           else{
-                              windowText = windowText + "<p> Earliest Potential Year of Propagule Introduction: " + wetlandLow + "</p>" + "<p> Earliest Potential Year of Propagule Introduction: " + wetlandHigh + "</p>";
+                              windowText = windowText + "<p> Earliest Potential Year of Propagule Introduction: " + wetlandLow + "</p>" + "<p> Latest Potential Year of Propagule Introduction: " + wetlandHigh + "</p>";
                               if(streamsLow != 2201 || streamsHigh != 2020 || sinksLow != 2201 || sinksHigh != 2020){
                                 windowText = windowText + "<p><i> *Colonization of this area determined by modeled hydrology. </i></p>";
                               }
