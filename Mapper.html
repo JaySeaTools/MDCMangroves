@@ -153,10 +153,13 @@
       "esri/widgets/BasemapToggle",
       "esri/widgets/Popup",
       "esri/views/draw/PolygonDrawAction",
-      "esri/views/draw/Draw"
+      "esri/views/draw/Draw",
+      "esri/widgets/Legend",
+      "esri/widgets/FeatureForm",
+      "esri/config"
     ],
     function(
-      Map, MapView, FeatureLayer, GraphicsLayer, Graphic, Search, Locator, BasemapToggle, Popup, PolygonDrawAction, Draw) {
+      Map, MapView, FeatureLayer, GraphicsLayer, Graphic, Search, Locator, BasemapToggle, Popup, PolygonDrawAction, Draw, Legend, FeatureForm, esriConfig) {
       
       //base map set to topography
       var map = new Map({
@@ -233,7 +236,7 @@
      //Load in the feature layers here
      
       var highLayer = new FeatureLayer ({
-        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/MangroveHighPoly/FeatureServer"
+        url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/MangroveHighHDPoly/FeatureServer"
       });
       var saltMarshHighLayer = new FeatureLayer ({
         url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/SaltMarshHigh/FeatureServer"
@@ -252,11 +255,68 @@
       });
       var saltmarshVisual = new FeatureLayer({
         url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/Salt_Marshes/FeatureServer"
-      })
+      });
+      var mangroveRender;
     
       map.add(mangroveVisual);
       map.add(saltmarshVisual);
-    
+      
+      
+      function renderInundation(year){
+        var renderMax= year+((year-2021)/2)
+        console.log(renderMax)
+        var renderMin= year-((year-2021)/2)
+        console.log(renderMin)
+        var inundationRenderer = {
+          type: "simple",
+          symbol: {
+            type: "simple-fill",
+          
+            outline: {
+              style: "none"
+            }
+          },
+          visualVariables: [{
+              type: "color", 
+              field: "gridcode",
+              legendOptions: {
+                  title: "Year of Inundation"
+                },
+              stops: [{
+                value: renderMin, 
+                color: "#FF0000",
+                label: "Less than "+renderMin,
+              },
+              {
+                value: renderMax, 
+                color: "#00FF00", 
+                label: "Greater than "+renderMax,
+              }]
+          }]
+        };
+        map.remove(mangroveRender);
+        mangroveRender = new FeatureLayer ({
+          url: "https://services1.arcgis.com/B4MnusZHL3vmqU3t/arcgis/rest/services/MangroveHighHDPoly/FeatureServer",
+          renderer: inundationRenderer,
+          title: "Mangrove Inundation (High Sea-Level Rise Scenario)"
+        });
+        map.add(mangroveRender); 
+      }
+      
+      const form = new FeatureForm({
+        container: "form",
+      });
+      document.getElementById("btnSubmit").onclick = () => {
+        var parameter = parseInt(document.getElementById("year").value)
+        renderInundation(parameter);
+      };
+      view.ui.add("inputForm", "top-right");
+      view.ui.add(
+        new Legend({
+          view: view
+        }),
+        "top-right"
+      )
       var reportText; //The information that returned in the downloaded report
       var queryPolygon = false; //Used to determine whether querying a polygon project area
       var drawing = false; //Used to determine whether the user is currently drawing
@@ -624,7 +684,6 @@
         <p style="text-align:center;"><b><u>Interpreting the results:</u></b></p>
          <p style="text-align:center;">After selecting your area/location, a window will pop up describing the year of inundation for the low, intermediate, and high trends.
         </p>
-        <!-- <p style="text-align:center;">A CSV is available to download for your point of interest. To download this information to your computer, click the "Download CSV" button located at the bottom left of the results window pop up. This CSV will include the species that may be found in a particular location. Information includes common names, scientific names, life stages, minimum/maximum depth and salinity, and relevant comments.</p> -->
         <p style ="text-align:center;">This mapping tool is not without its limitations. Variables, forest extents, and community ecology are consistently being updated to create a more holistic determination of dieback. For a detailed explanation of limitations, please refer to the "Limitations and Assumptions" section found at the manuscript here: (Link Unavailable).</p>
         <p style ="text-align:center;">If there are issues or concerns involving this mapper, please contact the project developer at this email: juan.cervera@rsmas.miami.edu</p>
         <p style ="text-align:center;"><i>*This mapper application is a tool to assist in mangrove/salt marsh habitat conservation and restoration and should not be used as the sole source of information on these topics. Please seek an holistic and comprehensive approach when determining the restoration of wetland sites.</i></p>  
@@ -641,6 +700,15 @@
   </div>
   <!--This is where the map lives-->
   <div id="viewDiv">
+    <!--Input form-->
+    <div id="inputForm" class="esri-widget">
+      <div id="form" class="scroller esri-component" style ="text-align:center;">
+        <p><b> Mangrove Inundation Visualizer </b></p>
+        <p>Enter a year between 2021-2200</p>
+        <input type="number" id="year" label="Enter Year Here" style="text-align: center"/>
+        <p><input type="button" class="esri-button" value="Visualize Inundation" id="btnSubmit"/></p>
+      </div>
+    </div>
     <!--Draw button-->
     <div
         id="line-button"
@@ -666,6 +734,7 @@
           };
          </script>  
     </div>
+         
   </div>
   
 </body>
